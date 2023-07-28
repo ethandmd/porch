@@ -12,24 +12,30 @@
 
 #include <libcamera/libcamera.h>
 using namespace libcamera;
+using namespace std;
 
 int main()
 {
-    std::unique_ptr<CameraManager> cm = std::make_unique<CameraManager>();
+    unique_ptr<CameraManager> cm = make_unique<CameraManager>();
     cm->start();
 
+    if (cm->cameras().empty()) {
+        cout << "No cameras found" << endl;
+        return EXIT_FAILURE;
+    }
+
     for (auto const &camera : cm->cameras()) {
-        std::cout << "Found Camera with ID: " << camera->id() << std::endl;
+        cout << "Found Camera with ID: " << camera->id() << endl;
         /*for (const auto &[id, info] : camera->controls()) {
-		    std::cout << "Control: " << id->name() << ": " << info.toString() << std::endl;
+		    cout << "Control: " << id->name() << ": " << info.toString() << endl;
 	    }
         for (const auto &[key, value] : camera->properties()) {
 	    	const ControlId *id = properties::properties.at(key);
 
-		    std::cout << "Property: " << id->name() << " = " << value.toString() << std::endl;
+		    cout << "Property: " << id->name() << " = " << value.toString() << endl;
 	    }*/
-        std::cout << "Camera model:" << *camera->properties().get(properties::Model) << std::endl;
-        std::cout << std::endl;
+        cout << "Camera model:" << *camera->properties().get(properties::Model) << endl;
+        cout << endl;
     }
 
     cm->stop();
