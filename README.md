@@ -2,10 +2,10 @@
 
 ### Setup:
 1. Install `libcamera`
-   ```
-   sudo apt install libcamera-dev
-   sudo apt install ninja-build
-   ```
+```
+sudo apt install libcamera-dev
+sudo apt install ninja-build
+```
 3. Build and run:
 ```
 .. porch~$ meson setup build
