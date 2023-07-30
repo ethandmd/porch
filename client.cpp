@@ -32,7 +32,8 @@ int main()
         cout << "No cameras found" << endl;
         return EXIT_FAILURE;
     }
-
+    
+    // Enumerate all cameras.
     for (auto const &cam : cm->cameras()) {
         auto cameraId = cam->id();
         cameraIds.push_back(cameraId);
@@ -40,17 +41,19 @@ int main()
         cout << "Camera model: " << *cam->properties().get(properties::Model) << endl;
         cout << endl;
     }
+    
     // Grab our favorite camera.
-    shared_ptr<Camera> camera = cm->get(cameraIds[1]);
+    shared_ptr<Camera> camera = cm->get(cameraIds[0]);
     camera->acquire();
     
+    // Set the camera + stream configuration.
     unique_ptr<CameraConfiguration> config = camera->generateConfiguration( { StreamRole::Viewfinder } );
     StreamConfiguration &streamConfig = config->at(0);
     config->validate();
     cout << "Viewfinder configuration: " << streamConfig.toString() << endl;
     camera->configure(config.get());
 
-
+    // Allocate frame buffers for the stream.
     FrameBufferAllocator *allocator = new FrameBufferAllocator(camera);
     for (StreamConfiguration &cfg : *config) {
         if (allocator->allocate(cfg.stream())< 0) {
@@ -58,13 +61,30 @@ int main()
             return EXIT_FAILURE;
         }
     }
-
+    
+    // Allocate requests using the allocated frame buffers.
     Stream *stream = streamConfig.stream();
     const vector<unique_ptr<FrameBuffer>> &buffers = allocator->buffers(stream);
     vector<unique_ptr<Request>> requests;
 
+    for (auto const &buf : buffers) {
+        unique_ptr<Request> request = camera->createRequest();
+        if (!request) {
+            cout << "Can't create request for camera: " << camera->id() << endl;
+            return EXIT_FAILURE;
+        }
+        if (request->addBuffer(stream, buf.get()) < 0) {
+            cout << "Can't set buffer for request" << endl;
+            return EXIT_FAILURE;
+        }
+        requests.push_back(move(request));
+    }
+    
+    // Register the slot function to receive the camera signals.
     camera->requestCompleted.connect(requestHandler);
-    buffers[0];
+    
+    // Start the camera and queue the requests.
+    
 
     camera->stop();
     allocator->free(stream);
