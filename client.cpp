@@ -84,6 +84,17 @@ int main()
     camera->requestCompleted.connect(requestHandler);
     
     // Start the camera and queue the requests.
+    if (camera->start() < 0) {
+        cout << "Can't start camera: " << camera->id() << endl;
+        return EXIT_FAILURE;
+    }
+
+    for (auto const &request : requests) {
+        if (camera->queueRequest(request.get()) < 0) {
+            cout << "Can't queue request" << endl;
+            return EXIT_FAILURE;
+        }
+    }
     
 
     camera->stop();
