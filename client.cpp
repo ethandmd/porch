@@ -9,21 +9,102 @@
 
 #include <iostream>
 #include <memory>
+//#include <algorithm>
+#include <string>
 
+#include <unistd.h>
+#include <sys/mman.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 #include <libcamera/libcamera.h>
+
 using namespace libcamera;
 using namespace std;
+
+static int frameCount = 0;
+static shared_ptr<Camera> camera;
+static int fd;
+static struct sockaddr_in serv_addr;
+
+static void processRequest(Request *request);
+static vector<Span<uint8_t>> mapBuffer(FrameBuffer *buffer);
+static int writeFrame(uint8_t* data, size_t len, size_t cont);
 
 static void requestHandler(Request *request) {
     if (request->status() == Request::RequestCancelled) {
         cout << "Request cancelled: " << request->status() << endl;
         return;
     }
-    cout << "Request complete: " << request->status() << endl;
+    cout << "Request status: " << request->status() << endl;
+    processRequest(request);
+    // Extremely temporary solution while we implement an event loop.
+    frameCount++;
 }
 
-int main()
-{
+static void processRequest(Request *request) {
+    for (auto const [stream, buffer] : request->buffers()) {
+        cout << "Buffer sequence: " << buffer->metadata().sequence << endl;
+        vector<Span<uint8_t>> mappedPlanes = mapBuffer(buffer);
+        assert(mappedPlanes.size() == buffer->planes().size());
+
+        for (uint8_t i = 0; i < mappedPlanes.size(); i++) {
+            Span<uint8_t> data = mappedPlanes[i];
+            const auto len = min<unsigned int>(buffer->metadata().planes()[i].bytesused, data.size());
+            writeFrame(data.data(), len, i);
+        }
+        
+    }
+    request->reuse(Request::ReuseBuffers);
+    camera->queueRequest(request);
+}
+
+static vector<Span<uint8_t>> mapBuffer(FrameBuffer *buffer) {
+    vector<Span<uint8_t>> planes;
+    for (const auto &plane : buffer->planes()) {
+        const int fd = plane.fd.get();
+        const size_t len = max(
+                static_cast<size_t>(lseek(fd, 0, SEEK_END)),
+                static_cast<size_t>(plane.length + plane.offset)
+        );
+        void *addr = mmap(nullptr, len, PROT_READ, MAP_SHARED, fd, 0);
+        if (addr != MAP_FAILED) {
+            planes.emplace_back(static_cast<uint8_t *>(addr) + plane.offset, plane.length);
+        }
+    }
+    return planes;
+}
+
+static int writeFrame(uint8_t* data, size_t len, size_t cont) {
+    if (cont == 0) {
+        if (send(fd, "NEWFRAME", sizeof(len), 0) < 0) {
+            cout << "Failed to send frame header" << endl;
+            return -1;
+        }
+    }
+    if (send(fd, data, len, 0) < 0) {
+        cout << "Failed to send frame data" << endl;
+        return -1;
+    }
+    return 0;
+}
+
+int main() {
+
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0) {
+        cout << "Failed to create socket" << endl;
+        return EXIT_FAILURE;
+    }
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(8888);
+    serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    if (connect(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        cout << "Failed to connect to server" << endl;
+        return EXIT_FAILURE;
+    }
+
+
     vector<string> cameraIds;
     unique_ptr<CameraManager> cm = make_unique<CameraManager>();
     cm->start();
@@ -43,7 +124,7 @@ int main()
     }
     
     // Grab our favorite camera.
-    shared_ptr<Camera> camera = cm->get(cameraIds[0]);
+    camera = cm->get(cameraIds[0]);
     camera->acquire();
     
     // Set the camera + stream configuration.
@@ -95,12 +176,15 @@ int main()
             return EXIT_FAILURE;
         }
     }
-    
+
+    // Wait for 10 frames to be captured.
+    while (frameCount < 10) {}
 
     camera->stop();
     allocator->free(stream);
     delete allocator;
     camera->release();
+    camera.reset();
     cm->stop();
 
     return EXIT_SUCCESS;
