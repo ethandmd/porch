@@ -76,12 +76,12 @@ static vector<Span<uint8_t>> mapBuffer(FrameBuffer *buffer) {
 }
 
 static int writeFrame(uint8_t* data, size_t len, size_t cont) {
-    if (cont == 0) {
-        if (send(fd, "NEWFRAME", 9, 0) < 0) {
-            cout << "Failed to send frame header" << endl;
-            return -1;
-        }
-    }
+    //if (cont == 0) {
+    //    if (send(fd, "NEWFRAME", 9, 0) < 0) {
+    //        cout << "Failed to send frame header" << endl;
+    //        return -1;
+    //    }
+    //}
     if (send(fd, data, len, 0) < 0) {
         cout << "Failed to send frame data; frameCount: " << frameCount << endl;
         return -1;
