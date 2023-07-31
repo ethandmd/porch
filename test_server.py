@@ -9,7 +9,7 @@ count = -1
 frames = []
 
 while count < 9:
-    data, addr = sock.recvfrom(2**17)
+    data, addr = sock.recvfrom(2**18)
     if 'NEWFRAME'.encode() in data:
         count += 1
         frames.append(b'')
@@ -21,6 +21,7 @@ sock.close()
 
 i = 0
 for image in frames:
-    buf = np.asarray(bytearray(image), dtype=np.uint8)
-    image = cv2.imdecode(buf, cv2.IMREAD_COLOR)
-    cv2.imwrite('images/image' + str(i) + '.jpg', image)
+    if len(image) != 0 :
+        buf = np.asarray(bytearray(image), dtype=np.uint8)
+        jpg = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+        cv2.imwrite('images/image' + str(i) + '.jpg', jpg)
