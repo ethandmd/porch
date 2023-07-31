@@ -35,7 +35,7 @@ static void requestHandler(Request *request) {
         cout << "Request cancelled: " << request->status() << endl;
         return;
     }
-    cout << "Request status: " << request->status() << endl;
+    //cout << "Request status: " << request->status() << endl;
     processRequest(request);
     // Extremely temporary solution while we implement an event loop.
     frameCount++;
@@ -43,13 +43,14 @@ static void requestHandler(Request *request) {
 
 static void processRequest(Request *request) {
     for (auto const [stream, buffer] : request->buffers()) {
-        cout << "Buffer sequence: " << buffer->metadata().sequence << endl;
+        //cout << "Buffer sequence: " << buffer->metadata().sequence << endl;
         vector<Span<uint8_t>> mappedPlanes = mapBuffer(buffer);
         assert(mappedPlanes.size() == buffer->planes().size());
 
         for (uint8_t i = 0; i < mappedPlanes.size(); i++) {
             Span<uint8_t> data = mappedPlanes[i];
             const auto len = min<unsigned int>(buffer->metadata().planes()[i].bytesused, data.size());
+            cout << "Sending frame " << frameCount << " with length " << len << endl;
             writeFrame(data.data(), len, i);
         }
         
@@ -82,7 +83,7 @@ static int writeFrame(uint8_t* data, size_t len, size_t cont) {
         }
     }
     if (send(fd, data, len, 0) < 0) {
-        cout << "Failed to send frame data" << endl;
+        cout << "Failed to send frame data; frameCount: " << frameCount << endl;
         return -1;
     }
     return 0;
