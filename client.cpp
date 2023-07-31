@@ -179,7 +179,8 @@ int main() {
     }
 
     // Wait for 10 frames to be captured.
-    while (frameCount < 10) {}
+    // while (frameCount < 100) {}
+    while (1) {}
 
     camera->stop();
     allocator->free(stream);
