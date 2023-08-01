@@ -7,14 +7,14 @@ project('porch', 'c', 'cpp',
 
 src_files = files([
 	'client.cpp',
-    #	'event_loop.cpp',
+    'event_loop.cpp',
 ])
 
 # Point your PKG_CONFIG_PATH environment variable to the
 # libcamera install path libcamera.pc file ($prefix/lib/pkgconfig/libcamera.pc)
 deps = [
       dependency('libcamera', required : true),
-      #      dependency('libevent_pthreads'),
+      #dependency('libevent_pthreads'),
 ]
 
 cpp_arguments = [ '-Wno-unused-parameter', ]
