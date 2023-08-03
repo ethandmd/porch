@@ -14,7 +14,7 @@ src_files = files([
 # libcamera install path libcamera.pc file ($prefix/lib/pkgconfig/libcamera.pc)
 deps = [
       dependency('libcamera', required : true),
-      #dependency('libevent_pthreads'),
+      dependency('libevent_pthreads'),
 ]
 
 cpp_arguments = [ '-Wno-unused-parameter', ]

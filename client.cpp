@@ -18,13 +18,17 @@
 #include <sys/socket.h>
 #include <libcamera/libcamera.h>
 
+#include "event_loop.h"
+
 using namespace libcamera;
 using namespace std;
 
-static int frameCount = 0;
 static shared_ptr<Camera> camera;
 static int fd;
 static struct sockaddr_in serv_addr;
+
+#define TIMEOUT_SEC 3
+static EventLoop loop;
 
 static void processRequest(Request *request);
 static vector<Span<uint8_t>> mapBuffer(FrameBuffer *buffer);
@@ -35,13 +39,13 @@ static void requestHandler(Request *request) {
         cout << "Request cancelled: " << request->status() << endl;
         return;
     }
+    //processRequest(request);
     //cout << "Request status: " << request->status() << endl;
-    processRequest(request);
-    // Extremely temporary solution while we implement an event loop.
-    frameCount++;
+    loop.callLater(std::bind(&processRequest, request));
 }
 
 static void processRequest(Request *request) {
+    cout << "Processing request..." << endl;
     for (auto const [stream, buffer] : request->buffers()) {
         //cout << "Buffer sequence: " << buffer->metadata().sequence << endl;
         vector<Span<uint8_t>> mappedPlanes = mapBuffer(buffer);
@@ -50,7 +54,7 @@ static void processRequest(Request *request) {
         for (uint8_t i = 0; i < mappedPlanes.size(); i++) {
             Span<uint8_t> data = mappedPlanes[i];
             const auto len = min<unsigned int>(buffer->metadata().planes()[i].bytesused, data.size());
-            cout << "Sending frame " << frameCount << " with length " << len << endl;
+            //cout << "Sending frame " << frameCount << " with length " << len << endl;
             writeFrame(data.data(), len, i);
         }
         
@@ -83,7 +87,7 @@ static int writeFrame(uint8_t* data, size_t len, size_t cont) {
     //    }
     //}
     if (send(fd, data, len, 0) < 0) {
-        cout << "Failed to send frame data; frameCount: " << frameCount << endl;
+        //cout << "Failed to send frame data; frameCount: " << frameCount << endl;
         return -1;
     }
     return 0;
@@ -104,8 +108,7 @@ int main() {
         cout << "Failed to connect to server" << endl;
         return EXIT_FAILURE;
     }
-
-
+    
     vector<string> cameraIds;
     unique_ptr<CameraManager> cm = make_unique<CameraManager>();
     cm->start();
@@ -178,9 +181,11 @@ int main() {
         }
     }
 
-    // Wait for 10 frames to be captured.
-    // while (frameCount < 100) {}
-    while (1) {}
+
+    // while (1) {}
+    //loop.timeout(TIMEOUT_SEC);
+    int ret = loop.exec();
+    std::cout << "Event loop exited with code " << ret << std::endl;
 
     camera->stop();
     allocator->free(stream);

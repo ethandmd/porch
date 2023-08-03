@@ -36,7 +36,7 @@ def gen_frames():
                 b'Content-Length: ' + f"{len(data)}".encode() + b'\r\n'
                 b'\r\n' + data + b'\r\n'
         )
-        time.sleep(0.05)
+        time.sleep(0.01)
 
 @app.route('/feed')
 def feed():
