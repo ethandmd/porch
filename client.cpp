@@ -11,6 +11,7 @@
 #include <memory>
 //#include <algorithm>
 #include <string>
+#include <cstdlib>
 
 #include <unistd.h>
 #include <sys/mman.h>
@@ -45,7 +46,6 @@ static void requestHandler(Request *request) {
 }
 
 static void processRequest(Request *request) {
-    cout << "Processing request..." << endl;
     for (auto const [stream, buffer] : request->buffers()) {
         //cout << "Buffer sequence: " << buffer->metadata().sequence << endl;
         vector<Span<uint8_t>> mappedPlanes = mapBuffer(buffer);
@@ -87,7 +87,7 @@ static int writeFrame(uint8_t* data, size_t len, size_t cont) {
     //    }
     //}
     if (send(fd, data, len, 0) < 0) {
-        //cout << "Failed to send frame data; frameCount: " << frameCount << endl;
+        cout << "Failed to send frame data; frameCount: " << "NaN" << endl;
         return -1;
     }
     return 0;
@@ -100,10 +100,17 @@ int main() {
         cout << "Failed to create socket" << endl;
         return EXIT_FAILURE;
     }
+    char* addr = std::getenv("SERVER_ADDR");
+    int port = std::stoi(std::getenv("SERVER_PORT"));
+    if (addr == nullptr || port == 0) {
+        cout << "Failed to get server address" << endl;
+        return EXIT_FAILURE;
+    }
+    cout << "Connecting to server at " << addr << ":" << port << endl;
 
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(8888);
-    serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    serv_addr.sin_port = htons(port);
+    serv_addr.sin_addr.s_addr = inet_addr(addr);
     if (connect(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         cout << "Failed to connect to server" << endl;
         return EXIT_FAILURE;
