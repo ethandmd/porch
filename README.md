@@ -27,6 +27,7 @@ porch/build~$ ./porch
 https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/tf2_detection_zoo.md
 ```
 ```
+git https://github.com/tensorflow/models.git
 wget http://download.tensorflow.org/models/object_detection/tf2/20200711/<MODEL_NAME>.tar.gz
 tar -xzvf path/to/<MODEL_NAME>.tar.gz -C destination_directory/
 ```
