@@ -20,3 +20,14 @@ porch/build~$ ./porch
 ```
 
 ### [Libcamera API Guide](https://git.libcamera.org/libcamera/libcamera.git/tree/Documentation/guides/application-developer.rst)
+
+### Relevent tf links:
+1. TensorFlow 2 Detection Model Zoo
+```
+https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/tf2_detection_zoo.md
+```
+```
+wget http://download.tensorflow.org/models/object_detection/tf2/20200711/<MODEL_NAME>.tar.gz
+tar -xzvf path/to/<MODEL_NAME>.tar.gz -C destination_directory/
+```
+replace MODEL_NAME with desired model from tf2 model zoo. Define variables pipline_config, model_dir, and PATH_TO_LABELS with correct filepaths
