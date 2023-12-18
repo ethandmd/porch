@@ -1,9 +1,10 @@
 import time
+import sys
 import cv2 as cv
 from flask import Flask, Response
-
+ipcam = sys.argv[1] if len(sys.argv) > 1 else exit(1)
 app = Flask(__name__)
-cap = cv.VideoCapture("rtsp://192.168.1.9:8554/cam")
+cap = cv.VideoCapture(ipcam)
 
 def gen_frames():
     while True:
