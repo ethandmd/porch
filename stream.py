@@ -1,18 +1,16 @@
-import cv2 as cv
 import time
-import numpy as np
+import cv2 as cv
 from flask import Flask, Response
 
 app = Flask(__name__)
-cap = cv.VideoCapture('udp://192.168.1.21:8888')
+cap = cv.VideoCapture("rtsp://192.168.1.9:8554/cam")
 
 def gen_frames():
-
     while True:
-        ret, buff = cap.read()
+        ret, frame = cap.read()
         if not ret:
             break
-        ret, frame = cv.imencode('.jpg', buff)
+        ret, frame = cv.imencode('.jpg', frame)
         data = frame.tobytes()
         yield(
                 b'--frame\r\n'
@@ -29,4 +27,4 @@ def feed():
 def index():
     return 'image:<br><img src="/feed" />'
 
-app.run(debug=True)
+app.run()
