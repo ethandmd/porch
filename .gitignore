@@ -4,3 +4,4 @@ target/*
 *.jpg
 *.jpeg
 *.png
+.venv
