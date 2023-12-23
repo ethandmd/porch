@@ -75,6 +75,7 @@ impl From<[&str; 3]> for LaunchCommand {
             }
             "fdsrc" => LaunchCommand(format!(
                 "( fdsrc {} ! \
+                    h264parse ! \
                     rtph264pay name=pay0 pt=96 )",
                 source[1]
             )),
