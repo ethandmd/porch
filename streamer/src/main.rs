@@ -3,7 +3,9 @@ use glib::MainLoop;
 //use gstreamer::prelude::*;
 //use gstreamer::{ElementFactory, Pipeline, State};
 use gstreamer_rtsp_server::prelude::*;
-use gstreamer_rtsp_server::{gst, gst::DeviceMonitor, RTSPAuth, RTSPToken};
+use gstreamer_rtsp_server::{
+    gst, gst::DeviceMonitor, RTSPAddressPool, RTSPClient, RTSPMediaFactory, RTSPServer,
+};
 
 #[derive(Parser)]
 #[command(author = "ethandmd")]
@@ -39,21 +41,17 @@ impl LaunchCommand {
         let orr = String::from("");
         let enc = String::from("x264enc");
         match source {
-            Sources::Fdsrc => Self::from([
-                "fdsrc",
-                &params.unwrap_or(orr.clone()),
-                &encoder.unwrap_or(enc),
-            ]),
+            Sources::Fdsrc => {
+                Self::from(["fdsrc", &params.unwrap_or(orr), &encoder.unwrap_or(enc)])
+            }
             Sources::Libcamerasrc => Self::from([
                 "libcamerasrc",
-                &params.unwrap_or(orr.clone()),
+                &params.unwrap_or(orr),
                 &encoder.unwrap_or(enc),
             ]),
-            Sources::V4l2src => Self::from([
-                "v4l2src",
-                &params.unwrap_or(orr.clone()),
-                &encoder.unwrap_or(enc),
-            ]),
+            Sources::V4l2src => {
+                Self::from(["v4l2src", &params.unwrap_or(orr), &encoder.unwrap_or(enc)])
+            }
         }
     }
 }
@@ -112,12 +110,21 @@ fn serve(source: Sources, params: Option<String>, encoder: Option<String>) {
     let launch = LaunchCommand::new(source, params, encoder);
     println!("Launch command: {}", &launch.0);
     let main_loop = MainLoop::new(None, false);
-    let server = gstreamer_rtsp_server::RTSPServer::new();
+    let server = RTSPServer::new();
     let mounts = server.mount_points().expect("Could not get mount points.");
-    let factory = gstreamer_rtsp_server::RTSPMediaFactory::new();
+    let factory = RTSPMediaFactory::new();
+    let addr_pool = RTSPAddressPool::new();
+    let _ = addr_pool
+        .add_range("224.3.0.1", "224.3.0.255", 5000, 5256, 16)
+        .expect("Failed to add address pool.");
+    factory.set_address_pool(Some(&addr_pool));
+    //factory.set_protocols(RTSPLowerTrans::UDP_MCAST);
     factory.set_launch(&launch.0);
     factory.set_shared(true);
     mounts.add_factory("/cam", factory);
+    server.connect_client_connected(|_server: &RTSPServer, _client: &RTSPClient| {
+        println!("Client connected");
+    });
     let id = server
         .attach(None)
         .expect("Failed to attach to main context.");
