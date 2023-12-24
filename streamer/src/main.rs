@@ -115,15 +115,16 @@ fn serve(source: Sources, params: Option<String>, encoder: Option<String>) {
     let factory = RTSPMediaFactory::new();
     let addr_pool = RTSPAddressPool::new();
     let _ = addr_pool
-        .add_range("224.3.0.1", "224.3.0.255", 5000, 5256, 16)
+        .add_range("224.3.0.0", "224.3.0.255", 5000, 5256, 1)
         .expect("Failed to add address pool.");
     factory.set_address_pool(Some(&addr_pool));
     //factory.set_protocols(RTSPLowerTrans::UDP_MCAST);
     factory.set_launch(&launch.0);
     factory.set_shared(true);
     mounts.add_factory("/cam", factory);
-    server.connect_client_connected(|_server: &RTSPServer, _client: &RTSPClient| {
+    server.connect_client_connected(|_server: &RTSPServer, client: &RTSPClient| {
         println!("Client connected");
+        client.set_post_session_timeout(0);
     });
     let id = server
         .attach(None)
@@ -133,6 +134,16 @@ fn serve(source: Sources, params: Option<String>, encoder: Option<String>) {
         server.address().expect("Server ain't listening."),
         server.bound_port()
     );
+    glib::timeout_add_seconds(2, move || {
+        match server.session_pool() {
+            Some(session) => {
+                println!("Session pool: {} sessions", session.n_sessions());
+                session.cleanup();
+            }
+            _ => (),
+        }
+        glib::ControlFlow::Continue
+    });
     main_loop.run();
     id.remove();
 }
