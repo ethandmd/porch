@@ -1,10 +1,9 @@
 [package]
-name = "rstp-server"
+name = "stream-rs"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-glib = "0.18.4"
-gstreamer-rtsp-server = "0.21.2"
+opencv = "0.88.4"
