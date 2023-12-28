@@ -62,13 +62,12 @@ impl Stream for StreamCapture {
             return Poll::Ready(None);
         }
         let response = format!(
-            r#"
-            --frame\r\n
-            Content-Type: image/jpeg\r\n
-            Content-Length: {}\r\n
-            Connection: keep-alive\r\n
-            Cache-Control: no-cache, no-store, must-revalidate\r\n\r\n"#,
-            buf.len()
+            "{}{}{}{}{}",
+            "--frame\r\n",
+            "Content-Type: image/jpeg\r\n",
+            "Content-Length: ",
+            buf.len(),
+            "\r\n\r\n",
         );
         let mut bytes = response.into_bytes();
         bytes.append(&mut buf.as_slice().to_vec());
