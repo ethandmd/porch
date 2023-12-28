@@ -1,5 +1,5 @@
 [package]
-name = "stream-rs"
+name = "streamrs"
 version = "0.1.0"
 edition = "2021"
 
