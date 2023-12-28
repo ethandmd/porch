@@ -77,7 +77,7 @@ impl Stream for StreamCapture {
 }
 
 // TODO: unwrap() on builder.
-async fn feed(ConnectInfo(addr): ConnectInfo<SocketAddr>) -> impl IntoResponse {
+async fn feed_mjpeg(ConnectInfo(addr): ConnectInfo<SocketAddr>) -> impl IntoResponse {
     println!("User: {addr} connected.");
     if let Ok(stream) = StreamCapture::new(OPTS.port).await {
         Response::builder()
@@ -99,7 +99,7 @@ async fn main() {
     let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
     let app = Router::new()
         .fallback_service(ServeDir::new(assets).append_index_html_on_directories(true))
-        .route("/feed", get(feed))
+        .route("/feed/mjpeg", get(feed_mjpeg))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::default().include_headers(true)),
