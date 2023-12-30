@@ -1,6 +1,7 @@
 .cache
 *.lock
-target/*
+*/target/*
 *.jpg
 *.jpeg
 *.png
+.venv
