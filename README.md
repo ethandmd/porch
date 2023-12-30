@@ -7,7 +7,7 @@ Examples tested on raspberry pi 3 model B:
 $ ./sender.sh -i libcamerasrc -o 192.168.1.10 -p 12345
 ...
 # and on receiver:
-cd ./receiver-rs
+cd ./streamrs
 cargo run
 ```
 ```
@@ -15,6 +15,6 @@ cargo run
 $ libcamera-vid -n -t 0 -o - | ./sender.sh -i fdsrc -o 192.168.1.10 -p 12345
 ...
 # and on receiver
-cd ./receiver-rs
+cd ./streamrs
 cargo run
 ```
