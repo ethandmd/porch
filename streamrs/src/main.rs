@@ -1,6 +1,6 @@
 use axum::{
     body,
-    extract::{connect_info::ConnectInfo, State},
+    extract::State,
     response::{IntoResponse, Response},
     routing::get,
     Router,
@@ -31,7 +31,10 @@ lazy_static! {
     static ref OPTS: Opts = Opts::parse();
 }
 
-async fn recv_stream(tx: broadcast::Sender<Box<[u8]>>, port: u16) -> Result<(), opencv::Error> {
+async fn multiplex_stream(
+    tx: broadcast::Sender<Box<[u8]>>,
+    port: u16,
+) -> Result<(), opencv::Error> {
     let mut cap = videoio::VideoCapture::from_file(format!(
             "udpsrc port={} caps=application/x-rtp ! rtph264depay ! h264parse ! decodebin ! videoconvert ! appsink",
             port).as_str(),
@@ -41,8 +44,12 @@ async fn recv_stream(tx: broadcast::Sender<Box<[u8]>>, port: u16) -> Result<(), 
     println!("Video capture opened with {}.", cap.get_backend_name()?);
     let mut frame = Mat::default();
     let mut buf = Vector::new();
+    #[cfg(debug_assertions)]
     let mut rxs = 0;
     loop {
+        if tx.receiver_count() == 0 {
+            continue;
+        }
         if let Err(e) = cap.read(&mut frame) {
             println!("Error reading frame: {}.", e);
         }
@@ -63,9 +70,13 @@ async fn recv_stream(tx: broadcast::Sender<Box<[u8]>>, port: u16) -> Result<(), 
         bytes.append(&mut b"\r\n".to_vec());
         match tx.send(bytes.into()) {
             Ok(n) => {
-                if n != rxs {
-                    rxs = n;
-                    println!("{} current rxs.", rxs);
+                #[cfg(debug_assertions)]
+                {
+                    if n != rxs {
+                        rxs = n;
+                        println!("{} current receivers.", rxs);
+                    }
+                    print!("Transmitter queue depth: {}\r", tx.len());
                 }
             }
             Err(e) => println!("Error sending frame: {}.", e),
@@ -73,12 +84,13 @@ async fn recv_stream(tx: broadcast::Sender<Box<[u8]>>, port: u16) -> Result<(), 
     }
 }
 
-async fn feed_mjpeg(
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    State(tx): State<Arc<broadcast::Sender<Box<[u8]>>>>,
-) -> impl IntoResponse {
-    println!("User: {addr} connected.");
+async fn feed_mjpeg(State(tx): State<Arc<broadcast::Sender<Box<[u8]>>>>) -> impl IntoResponse {
     let rx = tx.subscribe();
+    #[cfg(debug_assertions)]
+    {
+        println!("Channel is empty? {}.", tx.is_empty());
+        println!("Receiver queue depth: {}.", rx.len());
+    }
     Response::builder()
         .status(200)
         .header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
@@ -93,14 +105,13 @@ async fn main() {
         .with_max_level(tracing::Level::DEBUG)
         .init();
     let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
-    let (tx, _) = broadcast::channel(16);
-    let _ = tokio::spawn(recv_stream(tx.clone(), opts.cam_port));
+    let (tx, mut rx_drain) = broadcast::channel(16);
+    let _ = tokio::spawn(multiplex_stream(tx.clone(), opts.cam_port));
     let tx_state = Arc::new(tx.clone());
-    let mut rx = tx.subscribe();
     //TODO: issue with receiving frames in feed_mjpeg without this workaround.
     tokio::spawn(async move {
         loop {
-            let _ = rx.recv().await;
+            let _ = rx_drain.recv().await;
         }
     });
     let app = Router::new()
@@ -109,7 +120,7 @@ async fn main() {
         .with_state(tx_state)
         .layer(
             TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::default().include_headers(true)),
+                .make_span_with(DefaultMakeSpan::default().include_headers(false)),
         );
     let listener = TcpListener::bind(format!("{}:{}", OPTS.http_host, OPTS.http_port))
         .await
