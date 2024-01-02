@@ -62,7 +62,6 @@ async fn multiplex_stream(
         if let Err(e) = cap.read(&mut frame) {
             println!("Error reading frame: {}.", e);
         }
-        println!("Frame: {:?}", frame.data_bytes().unwrap().get(0..8));
         buf.clear();
         if let Err(e) = imgcodecs::imencode(".jpg", &frame, &mut buf, &Vector::new()) {
             println!("Error encoding frame: {}", e);
