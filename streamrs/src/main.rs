@@ -6,16 +6,20 @@ use axum::{
     Router,
 };
 use clap::Parser;
-use lazy_static::lazy_static;
 use opencv::{core::Vector, imgcodecs, prelude::*, videoio};
 use std::{boxed::Box, net::SocketAddr, path::PathBuf, sync::Arc};
-use tokio::{net::TcpListener, sync::broadcast};
+use tokio::{
+    net::TcpListener,
+    sync::{broadcast, Notify},
+};
 use tokio_stream::wrappers::BroadcastStream;
 use tower_http::{
     self,
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
 };
+
+const CHANNEL_CAPACITY: usize = 16;
 
 #[derive(Parser)]
 struct Opts {
@@ -27,14 +31,17 @@ struct Opts {
     cam_port: u16,
 }
 
-lazy_static! {
-    static ref OPTS: Opts = Opts::parse();
+struct AppState {
+    notify: Arc<Notify>,
+    tx: Arc<broadcast::Sender<Box<[u8]>>>,
 }
 
 async fn multiplex_stream(
+    notify: Arc<Notify>,
     tx: broadcast::Sender<Box<[u8]>>,
     port: u16,
 ) -> Result<(), opencv::Error> {
+    notify.notified().await;
     let mut cap = videoio::VideoCapture::from_file(format!(
             "udpsrc port={} caps=application/x-rtp ! rtph264depay ! h264parse ! decodebin ! videoconvert ! appsink",
             port).as_str(),
@@ -47,8 +54,10 @@ async fn multiplex_stream(
     #[cfg(debug_assertions)]
     let mut rxs = 0;
     loop {
-        if tx.receiver_count() == 0 {
-            continue;
+        if tx.receiver_count() <= 1 {
+            #[cfg(debug_assertions)]
+            println!("Channel is idle, waiting for notification.");
+            notify.notified().await;
         }
         if let Err(e) = cap.read(&mut frame) {
             println!("Error reading frame: {}.", e);
@@ -74,7 +83,7 @@ async fn multiplex_stream(
                 {
                     if n != rxs {
                         rxs = n;
-                        println!("{} current receivers.", rxs);
+                        println!("\n{} current receivers.", rxs);
                     }
                     print!("Transmitter queue depth: {}\r", tx.len());
                 }
@@ -84,11 +93,12 @@ async fn multiplex_stream(
     }
 }
 
-async fn feed_mjpeg(State(tx): State<Arc<broadcast::Sender<Box<[u8]>>>>) -> impl IntoResponse {
-    let rx = tx.subscribe();
+async fn feed_mjpeg(State(app_state): State<Arc<AppState>>) -> impl IntoResponse {
+    app_state.notify.notify_one();
+    let rx = app_state.tx.subscribe();
     #[cfg(debug_assertions)]
     {
-        println!("Channel is empty? {}.", tx.is_empty());
+        println!("Channel is empty? {}.", app_state.tx.is_empty());
         println!("Receiver queue depth: {}.", rx.len());
     }
     Response::builder()
@@ -101,12 +111,17 @@ async fn feed_mjpeg(State(tx): State<Arc<broadcast::Sender<Box<[u8]>>>>) -> impl
 #[tokio::main]
 async fn main() {
     let opts = Opts::parse();
+    println!(
+        "Starting server on http://{}:{}",
+        opts.http_host, opts.http_port
+    );
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .init();
     let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
-    let (tx, mut rx_drain) = broadcast::channel(16);
-    let _ = tokio::spawn(multiplex_stream(tx.clone(), opts.cam_port));
+    let (tx, mut rx_drain) = broadcast::channel(CHANNEL_CAPACITY);
+    let notify = Arc::new(Notify::new());
+    let _ = tokio::spawn(multiplex_stream(notify.clone(), tx.clone(), opts.cam_port));
     let tx_state = Arc::new(tx.clone());
     //TODO: issue with receiving frames in feed_mjpeg without this workaround.
     tokio::spawn(async move {
@@ -117,12 +132,15 @@ async fn main() {
     let app = Router::new()
         .fallback_service(ServeDir::new(assets).append_index_html_on_directories(true))
         .route("/feed/mjpeg", get(feed_mjpeg))
-        .with_state(tx_state)
+        .with_state(Arc::new(AppState {
+            notify,
+            tx: tx_state,
+        }))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::default().include_headers(false)),
         );
-    let listener = TcpListener::bind(format!("{}:{}", OPTS.http_host, OPTS.http_port))
+    let listener = TcpListener::bind(format!("{}:{}", opts.http_host, opts.http_port))
         .await
         .unwrap();
     axum::serve(
